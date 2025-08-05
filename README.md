@@ -1,2 +1,2 @@
 # Face-recognition
-Face recognition by insight face
+Face recognition,include compare,Addface to database, delete face from database
