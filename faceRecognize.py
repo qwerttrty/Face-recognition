@@ -1,6 +1,8 @@
+#port 7000 for main compare and detect
 import base64
 import io
 from contextlib import asynccontextmanager
+from http.client import HTTPException
 import cv2
 import numpy as np
 from insightface.app import FaceAnalysis
@@ -299,7 +301,7 @@ def extract_embedding(face_img, recognition_model):
     return embedding / np.linalg.norm(embedding)          # L2归一化，x/||x||即x^
 
 def batch_extract_embeddings(image_dir, db_root_dir, projectCode,
-                             face_detector, recognition_model,force_override: bool = False):
+                             face_detector, recognition_model,entityID,force_override: bool = False,get_entity: bool=False):
     db_dir = os.path.join(db_root_dir, projectCode)
     os.makedirs(db_dir, exist_ok=True)
 
@@ -307,8 +309,12 @@ def batch_extract_embeddings(image_dir, db_root_dir, projectCode,
         if not filename.lower().endswith((".jpg", ".jpeg", ".png")):
             continue
 
-        entity_id = os.path.splitext(filename)[0]
-        vector_path = os.path.join(db_dir, f"{entity_id}.npy")  # ✅ 向量保存路径
+        if not get_entity:
+            entity_id = os.path.splitext(filename)[0]
+            vector_path = os.path.join(db_dir, f"{entity_id}.npy")
+        else:
+            entity_id = entityID
+            vector_path = os.path.join(db_dir, f"{entity_id}.npy")  # ✅ 向量保存路径
 
         if os.path.exists(vector_path) and not force_override:
             print(f"⏭️ 已存在向量文件，跳过: {entity_id}")
@@ -406,8 +412,9 @@ def compare_faces(query_emb: np.ndarray, db_dir: str, projectCode, top_k=3):
         else:
             mapped_sim = round(sim, 4)
         matched_id = db_ids[idx]
-        print(f"  id: {matched_id}  score: {sim:.4f}  confidence:{mapped_sim}")
-        result.append({"id": matched_id, "score": round(sim, 4),"DbName": projectCode,"confidence":round(mapped_sim,4)})
+        # score: {sim: .4f}
+        print(f"  entityId: {matched_id}  confidence:{mapped_sim} DbName: {projectCode}",)
+        result.append({"entityId": matched_id, "DbName": projectCode,"confidence":round(mapped_sim,4)})
 
     return result
 
@@ -454,9 +461,10 @@ def compare_faces(query_emb: np.ndarray, db_dir: str, projectCode, top_k=3):
 #定义infer
 @app.post("/infer")
 async def infer(input_data: ImageInput):
-    projectCode = input_data.projectCode
+    projectCode = input_data.projectCode.strip()
     #检测用face-crop,人脸比对提取用核心人脸位置对齐，不与存入的crop检验图片冲突.重新创建位置存原始图片
     image = base64_to_cv_image(input_data.faceImage)#BASE64转化图片
+
     if image is None:
         raise FileNotFoundError("❌ 图像读取失败")
 
@@ -484,17 +492,23 @@ async def infer(input_data: ImageInput):
 
 
             #提取输入图片中的特征向量，face_origin文件始终保持最新内容
-            batch_extract_embeddings(
-                image_dir="face_origin",
-                db_root_dir="face_origin/face_vector",
-                projectCode="",
-                face_detector=face_model,
-                recognition_model=recognition_model,
-                force_override=True
-            )
-            query_embedding = np.load("face_origin/face_vector/face.npy")
-            result =compare_faces(query_embedding, db_dir="vector_db", projectCode=projectCode, top_k=5)
-            return JSONResponse(content={"ret": 200, "msg": "识别成功","data":result},status_code=200)
+            try:
+                batch_extract_embeddings(
+                    image_dir="face_origin",
+                    db_root_dir="face_origin/face_vector",
+                    projectCode="",
+                    entityID="",
+                    face_detector=face_model,
+                    recognition_model=recognition_model,
+                    force_override=True
+                )
+                query_embedding = np.load("face_origin/face_vector/face.npy")
+                result =compare_faces(query_embedding, db_dir="vector_db", projectCode=projectCode, top_k=5)
+                return JSONResponse(content={"ret": 200, "msg": "识别成功","data":result},status_code=200)
+
+            except Exception as error:
+                print(error)
+                return JSONResponse(content={"ret": 500, "msg": "人脸搜索失败"})
 
 
 

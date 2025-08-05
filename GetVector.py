@@ -21,9 +21,10 @@ if __name__ == "__main__":
     # )
 
     batch_extract_embeddings(
-        image_dir="image_dir/test001",
+        image_dir="image_dir/test002",
         db_root_dir="vector_db",
-        projectCode="test001",
+        projectCode="test004",
+        entityID="",
         face_detector=face_detector,
         recognition_model=recognition_model,
         force_override=False

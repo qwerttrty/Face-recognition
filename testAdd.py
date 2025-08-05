@@ -3,18 +3,17 @@ import json
 import requests
 
 
-# 1. 读取图片并转 base64
-# file_path = './image/100005.jpg'
-file_path = 'image_dir/test002/lcy22.jpg'
+file_path = 'image_dir/test002/lqh.png'
 with open(file_path, "rb") as f:
     img_base64 = base64.b64encode(f.read()).decode('utf-8')
 
 # 2. 接口地址（本地 FastAPI 服务）
-url = "http://127.0.0.1:7000/infer"
+url = "http://127.0.0.1:7001/AddFace"
 
 payload = {
     "faceImage": img_base64,
-    "projectCode": "test001" #项目数据库编号
+    "projectCode": "test004", #项目数据库编号
+    "entityID":"lqh60203251"
 }
 
 # 4. 发起 POST 请求
